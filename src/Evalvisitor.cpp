@@ -186,6 +186,12 @@ BigInt BigInt::operator/(const BigInt& other) const {
     BigInt result;
     result.value = q;
     result.negative = (negative != other.negative) && result.value != "0";
+    
+    // Python floor division: if signs differ and there's a remainder, subtract 1 from quotient
+    if (negative != other.negative && r != "0") {
+        result = result - BigInt(1);
+    }
+    
     result.removeLeadingZeros();
     return result;
 }
@@ -194,7 +200,30 @@ BigInt BigInt::operator%(const BigInt& other) const {
     auto [q, r] = absDiv(value, other.value);
     BigInt result;
     result.value = r;
-    result.negative = negative && result.value != "0";
+    
+    // Python modulo: result has same sign as divisor (other)
+    // a = b*q + r where r has same sign as b
+    if (r != "0") {
+        if (negative && !other.negative) {
+            // negative % positive: result = b - r
+            result = other - BigInt(r);
+        } else if (!negative && other.negative) {
+            // positive % negative: result = -(|b| - r) = r - |b|
+            result = BigInt(r) + other;  // other is negative, so this subtracts
+        } else if (negative && other.negative) {
+            // negative % negative: result is negative
+            result.value = r;
+            result.negative = true;
+        } else {
+            // positive % positive
+            result.value = r;
+            result.negative = false;
+        }
+    } else {
+        result.value = "0";
+        result.negative = false;
+    }
+    
     result.removeLeadingZeros();
     return result;
 }
