@@ -515,7 +515,15 @@ void EvalVisitor::popScope() {
 }
 
 void EvalVisitor::setVariable(const std::string& name, const Value& val) {
-    // Set in current scope
+    // Search from innermost to outermost scope to see if variable already exists
+    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) {
+        if (it->find(name) != it->end()) {
+            // Update existing variable in its scope
+            (*it)[name] = val;
+            return;
+        }
+    }
+    // Variable doesn't exist, create in current scope
     scopes.back()[name] = val;
 }
 
@@ -1051,27 +1059,26 @@ std::any EvalVisitor::visitFormat_string(Python3Parser::Format_stringContext *ct
     
     for (size_t i = 0; i < ctx->children.size(); i++) {
         auto child = ctx->children[i];
-        std::string text = child->toString();
         
-        if (text == "f\"" || text == "f'" || text == "\"" || text == "'") {
-            continue;
-        }
-        
-        if (auto testlist = dynamic_cast<Python3Parser::TestlistContext*>(child)) {
+        // Skip FORMAT_QUOTATION and QUOTATION tokens
+        if (auto terminal = dynamic_cast<antlr4::tree::TerminalNode*>(child)) {
+            std::string text = terminal->toString();
+            if (text == "f\"" || text == "f'" || text == "\"" || text == "'") {
+                continue;
+            }
+            if (text == "{" || text == "}") {
+                continue;
+            }
+            // FORMAT_STRING_LITERAL - add the literal text
+            result += text;
+        } else if (auto testlist = dynamic_cast<Python3Parser::TestlistContext*>(child)) {
             // Expression inside {}
             auto tests = testlist->test();
             for (size_t j = 0; j < tests.size(); j++) {
-                if (j > 0) result += " ";
+                if (j > 0) result += ", ";  // For multiple expressions
                 Value val = std::any_cast<Value>(visit(tests[j]));
                 result += val.toString();
             }
-        } else {
-            // Literal text
-            if (text.length() >= 2 && text[0] == '{' && text[text.length()-1] == '}') {
-                // Skip the braces, we handle testlist separately
-                continue;
-            }
-            result += text;
         }
     }
     
