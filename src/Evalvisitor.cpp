@@ -683,15 +683,45 @@ std::any EvalVisitor::visitExpr_stmt(Python3Parser::Expr_stmtContext *ctx) {
         }
     } else {
         // Regular assignment (possibly chained)
-        Value rhsVal = std::any_cast<Value>(visit(testlists.back()));
+        // Handle multiple assignment: a, b = 1, 2
+        auto rhs = testlists.back();
+        auto rhsTests = rhs->test();
         
         // Assign to all lhs expressions (right to left, excluding the last which is rhs)
         for (int i = testlists.size() - 2; i >= 0; i--) {
             auto lhs = testlists[i];
             auto lhsTests = lhs->test();
             
-            if (lhsTests.size() == 1) {
+            if (lhsTests.size() == rhsTests.size()) {
+                // Multiple assignment: a, b = 1, 2
+                for (size_t j = 0; j < lhsTests.size(); j++) {
+                    std::string varName;
+                    auto test = lhsTests[j];
+                    if (test->or_test() && 
+                        test->or_test()->and_test().size() == 1 &&
+                        test->or_test()->and_test(0)->not_test().size() == 1) {
+                        auto notTest = test->or_test()->and_test(0)->not_test(0);
+                        if (notTest->comparison() && 
+                            notTest->comparison()->arith_expr().size() == 1) {
+                            auto arith = notTest->comparison()->arith_expr(0);
+                            if (arith->term().size() == 1 && arith->term(0)->factor().size() == 1) {
+                                auto factor = arith->term(0)->factor(0);
+                                if (factor->atom_expr() && factor->atom_expr()->atom() && 
+                                    factor->atom_expr()->atom()->NAME()) {
+                                    varName = factor->atom_expr()->atom()->NAME()->toString();
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!varName.empty()) {
+                        Value rhsVal = std::any_cast<Value>(visit(rhsTests[j]));
+                        setVariable(varName, rhsVal);
+                    }
+                }
+            } else if (lhsTests.size() == 1) {
                 // Single assignment
+                Value rhsVal = std::any_cast<Value>(visit(rhs));
                 std::string varName;
                 if (lhsTests[0]->or_test() && 
                     lhsTests[0]->or_test()->and_test().size() == 1 &&
