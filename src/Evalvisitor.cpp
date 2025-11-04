@@ -363,30 +363,40 @@ Value Value::operator+(const Value& other) const {
     if (type == ValueType::STRING || other.type == ValueType::STRING) {
         return Value(toString() + other.toString());
     }
+    // Handle BOOL as numeric
     if (type == ValueType::FLOAT || other.type == ValueType::FLOAT) {
         return Value(toFloat().floatVal + other.toFloat().floatVal);
     }
-    if (type == ValueType::INT && other.type == ValueType::INT) {
-        return Value(intVal + other.intVal);
+    // Both are INT or BOOL - convert BOOL to INT
+    if ((type == ValueType::INT || type == ValueType::BOOL) && 
+        (other.type == ValueType::INT || other.type == ValueType::BOOL)) {
+        BigInt v1 = (type == ValueType::BOOL) ? BigInt(boolVal ? 1 : 0) : intVal;
+        BigInt v2 = (other.type == ValueType::BOOL) ? BigInt(other.boolVal ? 1 : 0) : other.intVal;
+        return Value(v1 + v2);
     }
     return Value();
 }
 
 Value Value::operator-(const Value& other) const {
+    // Handle BOOL as numeric
     if (type == ValueType::FLOAT || other.type == ValueType::FLOAT) {
         return Value(toFloat().floatVal - other.toFloat().floatVal);
     }
-    if (type == ValueType::INT && other.type == ValueType::INT) {
-        return Value(intVal - other.intVal);
+    // Both are INT or BOOL - convert BOOL to INT
+    if ((type == ValueType::INT || type == ValueType::BOOL) && 
+        (other.type == ValueType::INT || other.type == ValueType::BOOL)) {
+        BigInt v1 = (type == ValueType::BOOL) ? BigInt(boolVal ? 1 : 0) : intVal;
+        BigInt v2 = (other.type == ValueType::BOOL) ? BigInt(other.boolVal ? 1 : 0) : other.intVal;
+        return Value(v1 - v2);
     }
     return Value();
 }
 
 Value Value::operator*(const Value& other) const {
     // String repetition
-    if (type == ValueType::STRING && other.type == ValueType::INT) {
+    if (type == ValueType::STRING && (other.type == ValueType::INT || other.type == ValueType::BOOL)) {
         std::string result;
-        BigInt count = other.intVal;
+        BigInt count = (other.type == ValueType::BOOL) ? BigInt(other.boolVal ? 1 : 0) : other.intVal;
         long long n = count.toDouble();
         if (n > 0) {
             for (long long i = 0; i < n; i++) {
@@ -395,9 +405,9 @@ Value Value::operator*(const Value& other) const {
         }
         return Value(result);
     }
-    if (type == ValueType::INT && other.type == ValueType::STRING) {
+    if ((type == ValueType::INT || type == ValueType::BOOL) && other.type == ValueType::STRING) {
         std::string result;
-        BigInt count = intVal;
+        BigInt count = (type == ValueType::BOOL) ? BigInt(boolVal ? 1 : 0) : intVal;
         long long n = count.toDouble();
         if (n > 0) {
             for (long long i = 0; i < n; i++) {
@@ -407,11 +417,16 @@ Value Value::operator*(const Value& other) const {
         return Value(result);
     }
     
+    // Handle BOOL as numeric
     if (type == ValueType::FLOAT || other.type == ValueType::FLOAT) {
         return Value(toFloat().floatVal * other.toFloat().floatVal);
     }
-    if (type == ValueType::INT && other.type == ValueType::INT) {
-        return Value(intVal * other.intVal);
+    // Both are INT or BOOL - convert BOOL to INT
+    if ((type == ValueType::INT || type == ValueType::BOOL) && 
+        (other.type == ValueType::INT || other.type == ValueType::BOOL)) {
+        BigInt v1 = (type == ValueType::BOOL) ? BigInt(boolVal ? 1 : 0) : intVal;
+        BigInt v2 = (other.type == ValueType::BOOL) ? BigInt(other.boolVal ? 1 : 0) : other.intVal;
+        return Value(v1 * v2);
     }
     return Value();
 }
@@ -446,12 +461,15 @@ Value Value::operator-() const {
 }
 
 bool Value::operator<(const Value& other) const {
-    if (type == ValueType::FLOAT || other.type == ValueType::FLOAT) {
-        return toFloat().floatVal < other.toFloat().floatVal;
+    // Handle BOOL as numeric for comparison
+    if ((type == ValueType::BOOL || type == ValueType::INT || type == ValueType::FLOAT) &&
+        (other.type == ValueType::BOOL || other.type == ValueType::INT || other.type == ValueType::FLOAT)) {
+        // Convert both to float for comparison
+        double v1 = (type == ValueType::BOOL) ? (boolVal ? 1.0 : 0.0) : toFloat().floatVal;
+        double v2 = (other.type == ValueType::BOOL) ? (other.boolVal ? 1.0 : 0.0) : other.toFloat().floatVal;
+        return v1 < v2;
     }
-    if (type == ValueType::INT && other.type == ValueType::INT) {
-        return intVal < other.intVal;
-    }
+    
     if (type == ValueType::STRING && other.type == ValueType::STRING) {
         return stringVal < other.stringVal;
     }
@@ -471,11 +489,16 @@ bool Value::operator>=(const Value& other) const {
 }
 
 bool Value::operator==(const Value& other) const {
+    // Handle BOOL as numeric for comparison
+    if ((type == ValueType::BOOL || type == ValueType::INT || type == ValueType::FLOAT) &&
+        (other.type == ValueType::BOOL || other.type == ValueType::INT || other.type == ValueType::FLOAT)) {
+        // Convert both to float for comparison
+        double v1 = (type == ValueType::BOOL) ? (boolVal ? 1.0 : 0.0) : toFloat().floatVal;
+        double v2 = (other.type == ValueType::BOOL) ? (other.boolVal ? 1.0 : 0.0) : other.toFloat().floatVal;
+        return v1 == v2;
+    }
+    
     if (type != other.type) {
-        if ((type == ValueType::INT || type == ValueType::FLOAT) &&
-            (other.type == ValueType::INT || other.type == ValueType::FLOAT)) {
-            return toFloat().floatVal == other.toFloat().floatVal;
-        }
         return false;
     }
     
